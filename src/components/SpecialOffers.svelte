@@ -1,6 +1,27 @@
 <script>
-    import offerPhoto from '../assets/offer-QS-1209.png';
+    import quaysidePhoto from '../assets/offer-QS-1209.png';
+    import cranePhoto from '../assets/offer-CH-907.png';
+    import yardPhoto from '../assets/offer-YD-708.png';
+    import terrracePhoto from '../assets/offer-TR-609.png';
+    import { pounds } from '../lib/format';
     export let onBook;
+    export let flats = [];
+
+    const photos ={
+        'QS-1209': quaysidePhoto,
+        'CH-907': cranePhoto,
+        'YD-708': yardPhoto,
+        'TR-609': terrracePhoto
+    }
+    
+    const offerIds = ['QS-1209', 'CH-907', 'YD-708', 'TR-609'];
+
+    $: offers = offerIds
+        .map((id) => flats.find((flat) => flat.id === id))
+        .filter(Boolean);
+    function offerPrice(price) {
+        return Math.round(price * 0.93 / 100) * 100;
+    }
 </script>
 
 <section class="offers">
@@ -9,19 +30,21 @@
     <p>Four homes at 7% off the list price until 31 December.</p>
   </div>
 
-  <article class="offer-card">
-    <img src={offerPhoto} alt="Living room in a Quayside apartment overlooking the water">
-    <p class="offer-meta"> Quayside, floor 12 </p>
-    <h3>2 bedrooms, 58.1 m²</h3>
-    <p class="offer-meta">Water side, no balcony</p>
-
+<div class="offers-list">
+{#each offers as flat (flat.id)}
+<article class="offer-card">
+    <img src={photos[flat.id]} alt="Living room in a {flat.building} apartment"/>
+    <p class="offer-meta"> {flat.building}, floor {flat.floor}</p>
+    <h3>{flat.rooms} bedrooms, {flat.area} m²</h3>
+    <p class="offer-meta"> {flat.aspect}, {flat.balcony}</p>
     <div class="offer-prices">
-        <span>£361,800</span>
-        <del>£389,000</del>
+        <span>{pounds(offerPrice(flat.price))}</span>
+        <del>{pounds(flat.price)}</del>
     </div>
-
     <button class="offer-link" type="button" on:click={onBook}>Book a viewing</button>
 </article>
+{/each}
+</div>
 </section>
 
 <style>
@@ -45,10 +68,15 @@
         line-height: 1.35;
     }
 
-    .offer-card {
-        width: 326px;
-        max-width: 100%;
+    .offers-list {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 48px 24px;
         margin-top: 64px;
+    }
+
+    .offer-card {
+        min-width: 0;
         display: flex;
         flex-direction: column;
         align-items: flex-start;
@@ -98,7 +126,29 @@
         outline-offset: 4px;
     }
 
-    @media (max-width: 768px) {
+    @media (max-width: 1023px) {
+        .offers {
+            padding: 120px 32px;
+        }
+
+        .offers-list {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            
+        }
+        
+        .offers-header {
+            flex-direction: column;
+        }
+
+        .offers-header p {
+            max-width: 340px;
+        }
+
+        h2 {
+            font-size: 48px;
+        }
+    }
+    @media (max-width: 767px) {
         .offers {
             padding: 96px 16px;
         }
@@ -108,7 +158,7 @@
         }
 
         .offer-card {
-            width: 280px;
+            scroll-snap-align: start;
         }
 
         .offer-card h3 {
@@ -118,5 +168,18 @@
         h2 {
             font-size: 34px;
         }
+
+        .offers-list {
+            grid-template-columns: none;
+            grid-auto-flow: column;
+            grid-auto-columns: 280px;
+            gap: 12px;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            scroll-padding-left: 16px;
+            margin-inline: -16px;
+            padding: 4px 16px 8px;
+        }
+
     }
 </style>

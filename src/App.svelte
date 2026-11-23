@@ -907,7 +907,7 @@
     </div>
   </section>
 
-<SpecialOffers onBook={openCallback} />
+<SpecialOffers onBook={openCallback} flats={flats} />
   <section id="catalog" class="catalog wrap">
     <div class="row">
       <div class="col-4">
