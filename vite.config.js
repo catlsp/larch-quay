@@ -19,7 +19,7 @@ export default defineConfig({
   build: {
     minify: false,
     sourcemap: true,
-    assetsInlineLimit: 10485760,
+    assetsInlineLimit: 4096,
     cssCodeSplit: false,
     rolldownOptions: {
       output: {

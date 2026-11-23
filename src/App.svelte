@@ -13,7 +13,7 @@
   import { slide } from 'svelte/transition';
   import { getJSON, getJSONSync } from './lib/api.js';
   import { uiStore, flatsStore, favoritesStore } from './lib/store.js';
-  import { buildSchedule } from './lib/mortgage.js';
+  import { buildSchedule, monthlyPayment } from './lib/mortgage.js';
   import { newsDate, monthTitle, pounds, perMonth, area } from './lib/format.js';
   import Lightbox from './components/Lightbox.svelte';
   import FlatList from './components/FlatList.svelte';
@@ -183,6 +183,25 @@
   let videoReady = false;
   let lastY = 0;
   let lightboxIndex = -1;
+  let scrollFrame = 0;
+  let targetVideoTime = 0;
+
+  function scheduleScroll() {
+  if (scrollFrame) return;
+
+  scrollFrame = requestAnimationFrame(() => {
+    scrollFrame = 0;
+    onScroll();
+    });
+  }
+
+  function updateHeroVideo() {
+    if (!heroVideo || heroVideo.readyState < 2 || heroVideo.seeking) return;
+
+    if (Math.abs(heroVideo.currentTime - targetVideoTime) > 1 / 30) {
+    heroVideo.currentTime = targetVideoTime;
+    }
+  }
 
   function onScroll() {
     const y = window.scrollY;
@@ -190,13 +209,14 @@
     const heroTop = heroEl.offsetTop;
     const heroHeight = heroEl.offsetHeight;
 
-    let p = (y - heroTop) / (heroHeight - vh);
+    let p = (y - heroTop) / Math.max(1, heroHeight - vh);
     if (p < 0) p = 0;
     if (p > 1) p = 1;
-    if (heroVideo && heroVideo.duration) {
-      heroVideo.currentTime = p * heroVideo.duration;
+    if (heroVideo && Number.isFinite(heroVideo.duration)) {
+      targetVideoTime = p * heroVideo.duration;
+      updateHeroVideo();
     }
-    heroBg.style.top = y * 0.35 + 'px';
+    heroBg.style.transform = `translate3d(0, ${y * 0.35}px, 0) scale(1.08)`;
     heroCopy.style.opacity = Math.max(0, 1 - p * 3);
 
     topBar.style.height = Math.max(80, 84 - y / 60) + 'px';
@@ -207,6 +227,7 @@
     }
     lastY = y;
     topBand.style.width = y > heroTop + heroHeight - topBar.offsetHeight ? '100%' : '0%';
+    if (p < 1) return;
 
     document.querySelectorAll('.section-title').forEach((title) => {
       const r = title.getBoundingClientRect();
@@ -232,11 +253,18 @@
       img.style.top = -6 - k * 6 + 'px';
     });
 
-    document.querySelectorAll('.flat, .mortgage-row, .news-item').forEach((row) => {
-      const r = row.getBoundingClientRect();
-      let d = r.top - vh * 0.85;
-      if (d < 0) d = 0;
-      row.style.top = (d / (d + 100)) * 8 + 'px';
+    const rows = Array.from(
+    document.querySelectorAll('.flat, .mortgage-row, .news-item')
+    );
+
+    const positions = rows.map((row) => {
+      const top = row.getBoundingClientRect().top;
+      const distance = Math.max(0, top - vh * 0.85);
+      return (distance / (distance + 100)) * 8;
+    });
+
+    rows.forEach((row, index) => {
+      row.style.top = positions[index] + 'px';
     });
 
     const panels = document.querySelectorAll('.progress-panel');
@@ -284,12 +312,13 @@
   }
 
   function onSearch(e) {
-    query = e.target.value;
-    getJSON('/api/flats.json?q=' + query).then((list) => {
-      const q = query.trim().toUpperCase();
-      found = list.filter((f) => f.id.indexOf(q) > -1).map((f) => f.id);
-    });
-  }
+  query = e.target.value;
+  const q = query.trim().toUpperCase();
+
+  found = flats
+    .filter((flat) => flat.id.includes(q))
+    .map((flat) => flat.id);
+}
 
   function clearFilters() {
     rooms = [];
@@ -549,7 +578,7 @@
       const loan = flat.price - (flat.price * deposit) / 100;
       const payments = {};
       for (let t = minTerm; t <= maxTerm; t++) {
-        payments[t] = buildSchedule(loan, rate, t)[0].payment;
+        payments[t] = Math.round(monthlyPayment(loan, rate, t) * 100) / 100;
       }
       return { ...flat, loan, payments, monthly: payments[term] };
     });
@@ -623,18 +652,15 @@
       flats = list;
       flatsStore.set(list);
       window.appState.flats = list;
-      tick().then(() => ScrollTrigger.refresh());
-      list.forEach((flat) => {
-        getJSON('/api/flats/' + flat.id + '.json').then((data) => {
-          Object.assign(flat, data);
-          flats = flats;
-        });
+
+      calcFlats = list;
+
+      tick().then(() => {
+        ScrollTrigger.refresh();
+        onCalc();
       });
     });
 
-    getJSON('/api/flats.json?v=2').then(preparePayments);
-
-    setInterval(() => {
       getJSON('/api/prices.json').then((data) => {
         const map = {};
         data.items.forEach((p) => {
@@ -642,7 +668,6 @@
         });
         prices = map;
       });
-    }, window.appConfig.pricesPollInterval);
 
     uiStore.subscribe((s) => {
       lightboxIndex = s.lightboxIndex;
@@ -660,7 +685,7 @@
 
     document.fonts.ready.then(intro);
 
-    window.addEventListener('scroll', onScroll);
+    window.addEventListener('scroll', scheduleScroll, { passive: true });
     window.addEventListener('resize', onResize);
 
     try {
@@ -677,7 +702,9 @@
     } catch (e) {}
 
     setInterval(() => {
-      if (!gallerySwiper || lightboxIndex > -1) return;
+      if (document.hidden || !gallerySwiper || lightboxIndex > -1) return;
+      const rect = galleryEl.getBoundingClientRect();
+       if (rect.top >= window.innerHeight || rect.bottom <= 0) return;
       if (galleryEl.getBoundingClientRect().top > window.innerHeight) return;
       if (gallerySwiper.isEnd) {
         gallerySwiper.slideTo(0);
@@ -685,11 +712,6 @@
         gallerySwiper.slideNext();
       }
     }, 4500);
-
-    getJSON('/api/flats.json?_=' + Date.now()).then((list) => {
-      calcFlats = list;
-      onCalc();
-    });
 
     map = new maplibregl.Map({
       container: mapEl,
@@ -766,6 +788,7 @@
         muted
         playsinline
         preload="auto"
+        on:seeked={updateHeroVideo}
         on:loadeddata={() => (videoReady = true)}
         style="opacity: {videoReady ? 1 : 0}"
       ></video>
@@ -1823,13 +1846,15 @@
   }
 
   .cookie {
-    position: relative;
-    z-index: 1;
+    position: fixed;
+    inset: auto 16px 16px;
+    z-index: 10000;
     display: flex;
     align-items: center;
     gap: 24px;
-    height: 84px;
-    padding: 0 var(--margin);
+    height: auto;
+    padding: 16px;
+    flex-wrap: wrap;
     background: #ffffff;
     color: #333333;
     font-family: 'Montserrat', Arial, sans-serif;
@@ -2772,4 +2797,6 @@
   :global(.cw-btn:hover) {
     background: var(--ink) !important;
   }
+
+  
 </style>
