@@ -907,7 +907,7 @@
     </div>
   </section>
 
-<SpecialOffers />
+<SpecialOffers onBook={openCallback} />
   <section id="catalog" class="catalog wrap">
     <div class="row">
       <div class="col-4">
@@ -1604,7 +1604,7 @@
 
   .gallery {
     padding-top: 0;
-    padding-bottom: 180px;
+    padding-bottom: 0;
   }
 
   .opening {
