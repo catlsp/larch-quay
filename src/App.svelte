@@ -20,6 +20,7 @@
   import FlatModal from './components/FlatModal.svelte';
   import ModalLead from './components/ModalLead.svelte';
   import ModalCallback from './components/ModalCallback.svelte';
+  import SpecialOffers from './components/SpecialOffers.svelte';
 
   import quayAerial from './assets/about/quay-aerial.png';
   import interior1 from './assets/about/interior-1.png';
@@ -906,6 +907,7 @@
     </div>
   </section>
 
+<SpecialOffers />
   <section id="catalog" class="catalog wrap">
     <div class="row">
       <div class="col-4">
